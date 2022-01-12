@@ -25,21 +25,15 @@ main(int argc, char *argv[])
     struct net_device *dev;
 
     signal(SIGINT, on_signal);
-
-    // test for network initialzation
     if (net_init() == -1) {
         errorf("net_init() failure");
         return -1;
     }
-
-    // test for null device
     dev = loopback_init();
     if (!dev) {
         errorf("loopback_init() failure");
         return -1;
     }
-
-    // test for network running
     if (net_run() == -1) {
         errorf("net_run() failure");
         return -1;
