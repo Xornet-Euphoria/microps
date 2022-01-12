@@ -20,7 +20,6 @@ net_device_alloc(void)
         errorf("calloc() failure");
         return NULL;
     }
-
     return dev;
 }
 
@@ -89,7 +88,6 @@ net_device_output(struct net_device *dev, uint16_t type, const uint8_t *data, si
         errorf("not opened, dev=%s", dev->name);
         return -1;
     }
-
     if (len > dev->mtu) {
         errorf("too long, dev=%s, mtu=%u, len=%zu", dev->name, dev->mtu, len);
         return -1;
@@ -119,7 +117,7 @@ net_run(void)
 {
     struct net_device *dev;
 
-    debugf("open all devices");
+    debugf("open all devices...");
     for (dev = devices; dev; dev = dev->next) {
         net_device_open(dev);
     }
@@ -131,12 +129,11 @@ void
 net_shutdown(void)
 {
     struct net_device *dev;
-    debugf("close all devices");
 
+    debugf("close all devices...");
     for (dev = devices; dev; dev = dev->next) {
         net_device_close(dev);
     }
-
     debugf("shutdown");
 }
 
