@@ -22,11 +22,18 @@ struct ip_hdr {
     uint8_t options[0];
 };
 
+struct ip_protocol {
+    struct ip_protocol *next;
+    uint8_t type;
+    void (*handler)(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct ip_iface *iface);
+};
+
 const ip_addr_t IP_ADDR_ANY       = 0x00000000; /* 0.0.0.0 */
 const ip_addr_t IP_ADDR_BROADCAST = 0xffffffff; /* 255.255.255.255 */
 
 /* NOTE: if you want to add/delete the entries after net_run(), you need to protect these lists with a mutex. */
 static struct ip_iface *ifaces;
+static struct ip_protocol *protocols;
 
 int
 ip_addr_pton(const char *p, ip_addr_t *n)
@@ -168,6 +175,7 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
     uint8_t version, hdr_l;
     uint16_t total_l, offset, mf_flag;
     struct ip_iface *iface;
+    struct ip_protocol *proto;
     char addr[IP_ADDR_STR_LEN];
 
     if (len < IP_HDR_SIZE_MIN) {
@@ -221,6 +229,13 @@ ip_input(const uint8_t *data, size_t len, struct net_device *dev)
 
     debugf("dev=%s, iface=%s, protocol=%u, total=%u", dev->name, ip_addr_ntop(iface->unicast, addr, sizeof(addr)), hdr->protocol, total_l);
     ip_dump(data, total_l);
+
+    for (proto = protocols; proto; proto = proto->next) {
+        if (proto->type == hdr->protocol) {
+            proto->handler((uint8_t *)hdr + hdr_l, total_l - hdr_l, hdr->src, hdr->dst, iface);
+            return;
+        }
+    }
 }
 
 static int
@@ -322,6 +337,33 @@ ip_output(uint8_t protocol, const uint8_t *data, size_t len, ip_addr_t src, ip_a
     }
 
     return len;
+}
+
+/* NOTE: must not be call after net_run() */
+int
+ip_protocol_register(uint8_t type, void (*handler)(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct ip_iface *iface))
+{
+    struct ip_protocol *proto;
+
+    for (proto = protocols; proto; proto = proto->next) {
+        if (proto->type == type) {
+            errorf("already registered: type=%u", type);
+            return -1;
+        }
+    }
+
+    proto = calloc(1, sizeof(*proto));
+    if (!proto) {
+        errorf("calloc() failure");
+    }
+
+    proto->type = type;
+    proto->handler = handler;
+    proto->next = protocols;
+    protocols = proto;
+
+    infof("registered, type=%u", proto->type);
+    return 0;
 }
 
 int
