@@ -95,7 +95,7 @@ icmp_input(const uint8_t *data, size_t len, ip_addr_t src, ip_addr_t dst, struct
     hdr = (struct icmp_hdr *)data;
 
     if (cksum16((uint16_t *)hdr, len, 0) != 0) {
-        errorf("checksum error: sum=0x%4x, verify=0x%04x", ntoh16(hdr->sum), ntoh16(cksum16((uint16_t *)hdr, len, -hdr->sum)));
+        errorf("checksum error: sum=0x%04x, verify=0x%04x", ntoh16(hdr->sum), ntoh16(cksum16((uint16_t *)hdr, len, -hdr->sum)));
         return;
     }
 
