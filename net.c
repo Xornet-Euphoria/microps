@@ -316,6 +316,7 @@ net_shutdown(void)
 
 #include "ip.h"
 #include "icmp.h"
+#include "arp.h"
 
 int
 net_init(void)
@@ -329,5 +330,11 @@ net_init(void)
         errorf("icmp_init() failure");
         return -1;
     }
+
+    if (arp_init() == -1) {
+        errorf("arp_init() failure");
+        return -1;
+    }
+
     return 0;
 }
