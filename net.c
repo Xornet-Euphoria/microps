@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/time.h>
 
 #include "util.h"
 #include "net.h"
@@ -23,9 +24,17 @@ struct net_protocol_queue_entry {
     size_t len;
 };
 
+struct net_timer {
+    struct net_timer *next;
+    struct timeval interval;
+    struct timeval last;
+    void (*handler)(void);
+};
+
 /* NOTE: if you want to add/delete the entries after net_run(), you need to protect these lists with a mutex. */
 static struct net_device *devices;
 static struct net_protocol *protocols;
+static struct net_timer *timers;
 
 struct net_device *
 net_device_alloc(void)
@@ -222,6 +231,27 @@ net_protocol_register(uint16_t type, void (*handler)(const uint8_t *data, size_t
     return 0;
 }
 
+/* NOTE: must not be call after net_run() */
+int
+net_timer_register(struct timeval interval, void (*handler)(void))
+{
+    struct net_timer *timer;
+
+    timer = calloc(1, sizeof(*timer));
+    if (!timer) {
+        return -1;
+    }
+
+    gettimeofday(&timer->last, NULL);
+    timer->interval = interval;
+    timer->handler = handler;
+    timer->next = timers;
+    timers = timer;
+
+    infof("registered: interval={%d, %d}", interval.tv_sec, interval.tv_usec);
+    return 0;
+}
+
 #define NET_THREAD_SLEEP_TIME 1000
 
 static pthread_t thread;
@@ -234,6 +264,8 @@ net_thread(void *arg)
     struct net_device *dev;
     struct net_protocol *proto;
     struct net_protocol_queue_entry *entry;
+    struct net_timer *timer;
+    struct timeval now, diff;
 
     while(!terminate) {
         count = 0;
@@ -262,9 +294,19 @@ net_thread(void *arg)
             }
         }
 
-        if (!count) {
-            usleep(NET_THREAD_SLEEP_TIME);
+        for (timer = timers; timer; timer = timer->next) {
+            gettimeofday(&now, NULL);
+            timersub(&now, &timer->last, &diff);
+            if (timercmp(&timer->interval, &diff, <) != 0) {
+                timer->handler();
+                timer->last = now;
+            }
         }
+
+            if (!count)
+            {
+                usleep(NET_THREAD_SLEEP_TIME);
+            }
     }
 
     return NULL;
